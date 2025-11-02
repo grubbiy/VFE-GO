@@ -1,0 +1,6 @@
+{
+  "appName": "VodForEsports",
+  "port": 8000,
+  "dbPath": "db/vfe.sqlite",
+  "jwtSecret": "vH_RK_cVr79bgbxB5f6c7K1b1K-SzK8LgfD3kVBAZlI"
+}
