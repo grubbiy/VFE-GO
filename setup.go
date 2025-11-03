@@ -82,7 +82,7 @@ const indexHTML = `<!DOCTYPE html>
 <head>
   <meta charset="UTF-8">
   <title>VFE Login</title>
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="./static/style.css">
 </head>
 <body>
   <div class="login-container">
@@ -111,7 +111,7 @@ const indexHTML = `<!DOCTYPE html>
     }
     const data = await res.json();
     localStorage.setItem('token', data.token);
-    window.location.href = '/dashboard.html';
+    window.location.href = './dashboard.html';
   });
   </script>
 </body>
@@ -121,75 +121,280 @@ const indexHTML = `<!DOCTYPE html>
 const dashboardHTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>VFE Dashboard</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VodForEsports Dashboard</title>
+  <link rel="stylesheet" href="./static/style.css" />
 </head>
 <body>
-  <header>
-    <h2>VodForEsports</h2>
-    <button id="logout">Logout</button>
-  </header>
+  <h2>VodForEsports Dashboard</h2>
+  <button id="logoutBtn">Logout</button>
+  
+  <div id="vodlist" class="vod-container"></div>
 
-  <div class="dashboard">
-    <aside id="vodList">
-      <h3>VODs</h3>
-      <ul id="vodItems"></ul>
-    </aside>
-
-    <main>
-      <video id="player" controls width="720" height="400">
-        <source id="videoSource" src="" type="video/mp4">
-        Your browser does not support HTML5 video.
-      </video>
-    </main>
-  </div>
-
-  <script src="app.js"></script>
+  <script src="./static/app.js"></script>
 </body>
 </html>
 `
 
-const appJS = `async function loadVods() {
-  const res = await fetch('/api/health');
-  if (!res.ok) {
-    alert('Server not responding');
-    return;
-  }
+const appJS = `// =======================================================
+//  AUTH HANDLING
+// =======================================================
+document.addEventListener("DOMContentLoaded", () => {
+    const token = localStorage.getItem("token");
+    const DEBUG_STOP_REDIRECT = false;
 
-  // For now, list VODs by scanning storage directly (basic version)
-  const vods = await (await fetch('/api/list-vods', {
-    headers: { 'Authorization': 'Bearer ' + localStorage.getItem('token') }
-  })).json();
+    if (!token && !window.location.pathname.endsWith("index.html")) {
+        console.warn("No token found — redirecting to login");
+        if (!DEBUG_STOP_REDIRECT) {
+            window.location.href = "/index.html";
+            return;
+        } else {
+            document.body.style.background = "black";
+            document.body.style.color = "white";
+            document.body.innerHTML =
+                "<h2>DEBUG MODE: No token detected</h2><p>Open console for details.</p>";
+            throw new Error("Debug stop redirect");
+        }
+    }
 
-  const list = document.getElementById('vodItems');
-  list.innerHTML = '';
-  vods.forEach(v => {
-    const li = document.createElement('li');
-    li.textContent = v.title;
-    li.addEventListener('click', () => {
-      const player = document.getElementById('player');
-      player.src = '/' + v.file_path.replace(/\\/g, '/');
-      player.play();
-    });
-    list.appendChild(li);
-  });
-}
+    // --- Logout button ---
+    const logoutBtn = document.getElementById("logoutBtn");
+    if (logoutBtn) {
+        logoutBtn.addEventListener("click", () => {
+            localStorage.removeItem("token");
+            window.location.href = "/index.html";
+        });
+    }
 
-document.getElementById('logout').addEventListener('click', () => {
-  localStorage.removeItem('token');
-  window.location.href = '/';
+    // --- Load dashboard if we’re on that page ---
+    if (window.location.pathname.endsWith("dashboard.html")) {
+        loadDashboard();
+    }
 });
 
-window.onload = loadVods;
-`
-const styleCSS = `body {
-  margin: 0;
-  font-family: sans-serif;
-  background-color: #0e0e0e;
-  color: #eee;
+// =======================================================
+//  HELPER FUNCTIONS
+// =======================================================
+async function apiFetch(url, options = {}) {
+    options.headers = {
+        ...(options.headers || {}),
+        "Authorization": 'Bearer ' + localStorage.getItem("token"),
+        "Content-Type": "application/json",
+    };
+
+    const res = await fetch(url, options);
+    if (res.status === 401) {
+        console.warn("Unauthorized — redirecting to login...");
+        localStorage.removeItem("token");
+        if (!window.location.pathname.endsWith("index.html")) {
+            window.location.href = "/index.html";
+        }
+        throw new Error("unauthorized");
+    }
+
+    if (!res.ok) throw new Error('Request failed: ' + res.status);
+    return res.json();
 }
 
+// =======================================================
+//  DASHBOARD
+// =======================================================
+async function loadDashboard() {
+    console.log("Loading dashboard...");
+
+    const container = document.getElementById("vodlist");
+    if (!container) {
+        console.error("Container not found!");
+        return;
+    }
+
+    container.innerHTML = "<p>Loading VODs...</p>";
+
+    const token = localStorage.getItem("token");
+    if (!token) {
+        console.warn("No token found, redirecting to login...");
+        window.location.href = "/index.html";
+        return;
+    }
+
+    // --- Get VOD list ---
+    let vods;
+    try {
+        const res = await fetch("/api/list-vods", {
+            headers: { "Authorization": "Bearer " + token },
+        });
+        vods = await res.json();
+    } catch (err) {
+        console.error("Failed to load VODs:", err);
+        container.innerHTML = "<p>Error loading VODs</p>";
+        return;
+    }
+
+    container.innerHTML = "";
+
+    if (!vods || vods.length === 0) {
+        container.innerHTML = "<p>No VODs available.</p>";
+        return;
+    }
+
+    // --- Group by team and player ---
+    const grouped = {};
+    vods.forEach(vod => {
+        let team = vod.team_name || "Unknown Team";
+        let player = vod.player_name || "Unknown Player";
+
+        // Try to infer from file path
+        if (vod.file_path) {
+            const match = vod.file_path.match(/teams\/([^/]+)\/players\/([^/]+)/i);
+            if (match) {
+                team = match[1];
+                player = match[2];
+            }
+        }
+
+        if (!grouped[team]) grouped[team] = {};
+        if (!grouped[team][player]) grouped[team][player] = [];
+        grouped[team][player].push(vod);
+    });
+
+    // --- Create team grid ---
+    const teamGrid = document.createElement("div");
+    teamGrid.className = "grid";
+    container.appendChild(teamGrid);
+
+    Object.keys(grouped).forEach(team => {
+        const teamCard = document.createElement("div");
+        teamCard.className = "team-card";
+        teamCard.textContent = team;
+        teamCard.addEventListener("click", () => openTeam(team, grouped[team]));
+        teamGrid.appendChild(teamCard);
+    });
+
+    console.log('✅ Loaded ' + vods.length + ' VOD(s).');
+}
+
+// =======================================================
+//  TEAM / PLAYER NAVIGATION
+// =======================================================
+function openTeam(teamName, playersObj) {
+    const container = document.getElementById("vodlist");
+    container.innerHTML = '<h2>' + teamName + '</h2>';
+
+    const playerGrid = document.createElement("div");
+    playerGrid.className = "grid";
+    container.appendChild(playerGrid);
+
+    Object.keys(playersObj).forEach(playerName => {
+        const card = document.createElement("div");
+        card.className = "player-card";
+        card.textContent = playerName;
+        card.addEventListener("click", () => openPlayer(teamName, playerName, playersObj[playerName]));
+        playerGrid.appendChild(card);
+    });
+}
+
+function openPlayer(teamName, playerName, vods) {
+    const container = document.getElementById("vodlist");
+    container.innerHTML = '<h3>' + teamName + ' → ' + playerName + '</h3>';
+
+    if (!vods || vods.length === 0) {
+        container.innerHTML += "<p>No VODs found.</p>";
+        return;
+    }
+
+    const grid = document.createElement("div");
+    grid.className = "grid";
+
+    vods.forEach(vod => {
+        const card = document.createElement("div");
+        card.className = "vod-card";
+
+        const video = document.createElement("video");
+        video.src = "/vods/" + vod.file_path.replace(/^storage[\\/]/, "");
+        video.controls = false;
+        video.muted = true;
+        video.loop = true;
+        video.width = 220;
+        video.height = 120;
+        video.addEventListener("mouseenter", () => video.play());
+        video.addEventListener("mouseleave", () => {
+            video.pause();
+            video.currentTime = 0;
+        });
+
+        const title = document.createElement("p");
+        title.textContent = vod.title || vod.file_name || "Untitled";
+
+        card.appendChild(video);
+        card.appendChild(title);
+
+        card.addEventListener("click", () => openTheaterWithNotes(vod));
+        grid.appendChild(card);
+    });
+
+    container.appendChild(grid);
+}
+
+// =======================================================
+//  THEATER MODE (Fullscreen Video + Notes)
+// =======================================================
+function openTheaterWithNotes(vod) {
+    const existing = document.querySelector(".theater-overlay");
+    if (existing) existing.remove();
+
+    const overlay = document.createElement("div");
+    overlay.className = "theater-overlay";
+
+    // Close button
+    const closeBtn = document.createElement("button");
+    closeBtn.className = "theater-close";
+    closeBtn.textContent = "×";
+    closeBtn.addEventListener("click", () => overlay.remove());
+
+    // Video container
+    const videoContainer = document.createElement("div");
+    videoContainer.className = "theater-video-container";
+
+    const title = document.createElement("h2");
+    title.textContent = vod.title || "VOD Player";
+
+    const video = document.createElement("video");
+    video.src = "/vods/" + vod.file_path.replace(/^storage[\\/]/, "");
+    video.controls = true;
+    video.autoplay = true;
+
+    videoContainer.appendChild(title);
+    videoContainer.appendChild(video);
+
+    // Note panel
+    const notePanel = document.createElement("div");
+    notePanel.className = "note-panel";
+    notePanel.innerHTML = "
+        <h3>Notation (coming soon)</h3>
+        <p>This area will display the analysis tools later.</p>
+    ";
+
+    overlay.appendChild(closeBtn);
+    overlay.appendChild(videoContainer);
+    overlay.appendChild(notePanel);
+    document.body.appendChild(overlay);
+}
+`
+const styleCSS = `/* ===========================
+   BASE STYLES
+=========================== */
+body {
+  margin: 0;
+  font-family: "Segoe UI", sans-serif;
+  background-color: #0e0e0e;
+  color: #eee;
+  overflow-x: hidden;
+}
+
+/* ===========================
+   LOGIN PAGE
+=========================== */
 .login-container {
   width: 300px;
   margin: 100px auto;
@@ -212,73 +417,264 @@ button {
   border-radius: 6px;
   color: white;
   cursor: pointer;
+  transition: background 0.2s;
 }
 
+button:hover {
+  background: #0a84ff;
+}
+
+/* ===========================
+   HEADER
+=========================== */
 header {
   background: #111;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 10px 20px;
 }
 
-.dashboard {
-  display: flex;
-  gap: 20px;
+h2,
+h3 {
+  margin: 10px 0;
+}
+
+/* ===========================
+   DASHBOARD LAYOUT
+=========================== */
+#vodlist {
   padding: 20px;
 }
 
-aside {
-  width: 250px;
+.grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  padding-top: 10px;
+}
+
+/* ===========================
+   CARDS
+=========================== */
+.card {
   background: #1c1c1c;
+  border: 2px solid #333;
+  border-radius: 10px;
+  width: 220px;
   padding: 10px;
-  border-radius: 8px;
+  text-align: center;
+  transition: transform 0.2s, border-color 0.2s;
 }
 
-li {
+.card:hover {
+  transform: scale(1.05);
+  border-color: #007bff;
+}
+
+/* --- Video Cards --- */
+.vod-card video {
+  width: 100%;
+  border-radius: 10px;
+  margin-bottom: 5px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+}
+
+.vod-card p {
+  font-size: 14px;
+  color: #ccc;
+  word-wrap: break-word;
+}
+
+/* --- Player Cards --- */
+.player-card {
+  background: #181818;
+  font-weight: bold;
+  padding: 20px;
   cursor: pointer;
-  margin-bottom: 6px;
-  list-style: none;
-  padding: 6px;
-  border-radius: 4px;
+  border-radius: 10px;
+  transition: background 0.2s;
 }
 
-li:hover {
-  background: #333;
-}
-  .dashboard {
-  display: grid;
-  grid-template-columns: 250px 1fr 300px;
-  height: calc(100vh - 60px);
-  gap: 10px;
-  padding: 10px;
+.player-card:hover {
+  background: #252525;
 }
 
-aside {
-  background: #1a1a1a;
-  padding: 10px;
-  border-radius: 8px;
-  overflow-y: auto;
+/* --- Team Cards --- */
+.team-card {
+  background: linear-gradient(135deg, #1b1b1b, #252525);
+  border: 2px solid #333;
+  border-radius: 12px;
+  width: 200px;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.2s, border-color 0.2s, background 0.3s;
 }
 
-main {
+.team-card:hover {
+  transform: scale(1.05);
+  border-color: #007bff;
+  background: linear-gradient(135deg, #222, #333);
+}
+
+/* ===========================
+   THEATER OVERLAY (Fullscreen Video + Notes)
+=========================== */
+.theater-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.96);
   display: flex;
   align-items: center;
   justify-content: center;
+  z-index: 99999;
+  overflow: hidden;
+  gap: 20px;
+  padding: 40px;
+  box-sizing: border-box;
 }
 
-#notesPanel {
-  background: #1a1a1a;
-  padding: 10px;
-  border-radius: 8px;
-  overflow-y: auto;
+/* --- Close Button --- */
+.theater-close {
+  position: absolute;
+  top: 20px;
+  left: 25px;
+  font-size: 36px;
+  color: #fff;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: transform 0.2s, color 0.2s;
 }
 
-video {
-  max-width: 100%;
+.theater-close:hover {
+  transform: scale(1.2);
+  color: #007bff;
+}
+
+/* --- Video Section --- */
+.theater-video-container {
+  flex: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 85vh;
+  background: #000;
   border-radius: 10px;
-  box-shadow: 0 0 15px rgba(0,0,0,0.5);
+  padding: 10px;
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.8);
 }
 
+.theater-video-container h2 {
+  color: white;
+  font-size: 18px;
+  margin-bottom: 10px;
+}
+
+.theater-video-container video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+}
+
+/* --- Notation Panel --- */
+.note-panel {
+  flex: 1;
+  height: 85vh;
+  background: #181818;
+  border-left: 2px solid #333;
+  border-radius: 10px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  box-shadow: -2px 0 15px rgba(0, 0, 0, 0.6);
+}
+
+.note-panel h3 {
+  margin-bottom: 10px;
+  color: #fff;
+}
+
+.note-panel p {
+  font-size: 14px;
+  color: #ccc;
+  line-height: 1.5;
+}
+
+/* --- Animation --- */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.theater-overlay {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+/* --- TEAM BUTTONS --- */
+.team-card {
+  background: linear-gradient(145deg, #1a1a1a, #202020);
+  border: 1px solid #333;
+  border-radius: 12px;
+  width: 220px;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #eee;
+  font-weight: 600;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.team-card:hover {
+  background: linear-gradient(145deg, #242424, #2f2f2f);
+  transform: translateY(-3px) scale(1.03);
+  border-color: #007bff;
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
+}
+
+/* --- PLAYER BUTTONS --- */
+.player-card {
+  background: linear-gradient(145deg, #181818, #202020);
+  border: 1px solid #333;
+  border-radius: 10px;
+  width: 180px;
+  height: 70px;
+  margin: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #ccc;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+
+.player-card:hover {
+  background: linear-gradient(145deg, #232323, #2c2c2c);
+  transform: translateY(-2px) scale(1.04);
+  border-color: #0a84ff;
+  color: #fff;
+}
 `
 
 // Utility functions

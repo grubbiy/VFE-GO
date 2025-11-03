@@ -79,6 +79,20 @@ func main() {
 	http.HandleFunc("/api/health", srv.health)
 	http.HandleFunc("/api/login", srv.login)
 	http.HandleFunc("/api/notes/add", srv.auth(srv.addNote))
+
+	http.HandleFunc("/api/notes", srv.auth(func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodGet:
+			srv.listNotes(w, r)
+		case http.MethodPost:
+			srv.saveNotes(w, r)
+		case http.MethodDelete:
+			srv.deleteNotes(w, r)
+		default:
+			http.Error(w, "method not allowed", 405)
+		}
+	}))
+
 	http.HandleFunc("/api/admin/add-team", srv.auth(srv.addTeam))
 	http.HandleFunc("/api/admin/add-player", srv.auth(srv.addPlayer))
 	http.HandleFunc("/api/list-vods", srv.auth(srv.listVods))
@@ -178,6 +192,106 @@ func (s *Server) addNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, map[string]string{"ok": "true"})
+}
+
+// ----------------------- NOTE SYSTEM -----------------------
+
+func (s *Server) listNotes(w http.ResponseWriter, r *http.Request) {
+	vodID := r.URL.Query().Get("vod_id")
+	if vodID == "" {
+		http.Error(w, "missing vod_id", 400)
+		return
+	}
+
+	rows, err := s.db.Query(`SELECT ts_seconds, content FROM notes WHERE vod_id = ? ORDER BY ts_seconds`, vodID)
+	if err != nil {
+		http.Error(w, "db error", 500)
+		return
+	}
+	defer rows.Close()
+
+	type Note struct {
+		Time float64 `json:"ts_seconds"`
+		Text string  `json:"content"`
+	}
+	var notes []Note
+	for rows.Next() {
+		var n Note
+		rows.Scan(&n.Time, &n.Text)
+		notes = append(notes, n)
+	}
+
+	writeJSON(w, 200, notes)
+}
+
+func (s *Server) saveNotes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", 405)
+		return
+	}
+
+	userID, _ := userFrom(r.Context())
+
+	var body struct {
+		VodID int64 `json:"vod_id"`
+		Notes []struct {
+			TsSeconds float64 `json:"ts_seconds"`
+			Content   string  `json:"content"`
+		} `json:"notes"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		http.Error(w, "bad json", 400)
+		return
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		http.Error(w, "db error", 500)
+		return
+	}
+	defer tx.Rollback()
+
+	_, err = tx.Exec(`DELETE FROM notes WHERE vod_id = ? AND user_id = ?`, body.VodID, userID)
+	if err != nil {
+		http.Error(w, "delete error", 500)
+		return
+	}
+
+	for _, n := range body.Notes {
+		if strings.TrimSpace(n.Content) == "" {
+			continue
+		}
+		_, err := tx.Exec(`INSERT INTO notes (vod_id, user_id, ts_seconds, content) VALUES (?, ?, ?, ?)`,
+			body.VodID, userID, n.TsSeconds, n.Content)
+		if err != nil {
+			http.Error(w, "insert error", 500)
+			return
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		http.Error(w, "commit error", 500)
+		return
+	}
+
+	writeJSON(w, 200, map[string]string{"status": "saved"})
+}
+
+func (s *Server) deleteNotes(w http.ResponseWriter, r *http.Request) {
+	vodID := r.URL.Query().Get("vod_id")
+	if vodID == "" {
+		http.Error(w, "missing vod_id", 400)
+		return
+	}
+	userID, _ := userFrom(r.Context())
+
+	_, err := s.db.Exec(`DELETE FROM notes WHERE vod_id = ? AND user_id = ?`, vodID, userID)
+	if err != nil {
+		http.Error(w, "db error", 500)
+		return
+	}
+
+	writeJSON(w, 200, map[string]string{"deleted": "true"})
 }
 
 func (s *Server) listTeams(w http.ResponseWriter, r *http.Request) {

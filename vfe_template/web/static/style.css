@@ -10,24 +10,26 @@ body {
 }
 
 /* ===========================
-   LOGIN PAGE
+   HEADER
 =========================== */
-.login-container {
-  width: 300px;
-  margin: 100px auto;
-  text-align: center;
+header {
+  background: #111;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 25px;
+  border-bottom: 1px solid #222;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
-.login-container input {
-  display: block;
-  width: 100%;
-  margin: 8px 0;
-  padding: 10px;
-  border-radius: 6px;
-  border: none;
+header h1 {
+  color: #fff;
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
 }
 
-button {
+#logoutBtn {
   padding: 10px 15px;
   background: #007bff;
   border: none;
@@ -37,31 +39,42 @@ button {
   transition: background 0.2s;
 }
 
-button:hover {
+#logoutBtn:hover {
   background: #0a84ff;
 }
 
 /* ===========================
-   HEADER
+   NAVIGATION BAR (BACK BUTTON AREA)
 =========================== */
-header {
-  background: #111;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 10px 20px;
+#nav-bar {
+  padding: 15px 25px;
+  border-bottom: 1px solid #1a1a1a;
 }
 
-h2,
-h3 {
-  margin: 10px 0;
+/* Back Button Styling */
+.back-btn {
+  background: #222;
+  color: #fff;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-weight: 500;
+  margin-bottom: 20px;
+  transition: all 0.2s ease;
+}
+
+.back-btn:hover {
+  background: #007bff;
+  border-color: #007bff;
+  transform: translateY(-2px);
 }
 
 /* ===========================
    DASHBOARD LAYOUT
 =========================== */
-#vodlist {
-  padding: 20px;
+main#vodlist {
+  padding: 20px 25px;
 }
 
 .grid {
@@ -72,9 +85,63 @@ h3 {
 }
 
 /* ===========================
-   CARDS
+   TEAM CARDS
 =========================== */
-.card {
+.team-card {
+  background: linear-gradient(145deg, #1a1a1a, #202020);
+  border: 1px solid #333;
+  border-radius: 12px;
+  width: 220px;
+  height: 100px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #eee;
+  font-weight: 600;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.team-card:hover {
+  background: linear-gradient(145deg, #242424, #2f2f2f);
+  transform: translateY(-3px) scale(1.03);
+  border-color: #007bff;
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
+}
+
+/* ===========================
+   PLAYER CARDS
+=========================== */
+.player-card {
+  background: linear-gradient(145deg, #181818, #202020);
+  border: 1px solid #333;
+  border-radius: 10px;
+  width: 180px;
+  height: 70px;
+  margin: 10px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #ccc;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
+}
+
+.player-card:hover {
+  background: linear-gradient(145deg, #232323, #2c2c2c);
+  transform: translateY(-2px) scale(1.04);
+  border-color: #0a84ff;
+  color: #fff;
+}
+
+/* ===========================
+   VOD CARDS
+=========================== */
+.vod-card {
   background: #1c1c1c;
   border: 2px solid #333;
   border-radius: 10px;
@@ -84,12 +151,11 @@ h3 {
   transition: transform 0.2s, border-color 0.2s;
 }
 
-.card:hover {
+.vod-card:hover {
   transform: scale(1.05);
   border-color: #007bff;
 }
 
-/* --- Video Cards --- */
 .vod-card video {
   width: 100%;
   border-radius: 10px;
@@ -101,40 +167,6 @@ h3 {
   font-size: 14px;
   color: #ccc;
   word-wrap: break-word;
-}
-
-/* --- Player Cards --- */
-.player-card {
-  background: #181818;
-  font-weight: bold;
-  padding: 20px;
-  cursor: pointer;
-  border-radius: 10px;
-  transition: background 0.2s;
-}
-
-.player-card:hover {
-  background: #252525;
-}
-
-/* --- Team Cards --- */
-.team-card {
-  background: linear-gradient(135deg, #1b1b1b, #252525);
-  border: 2px solid #333;
-  border-radius: 12px;
-  width: 200px;
-  height: 100px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  transition: transform 0.2s, border-color 0.2s, background 0.3s;
-}
-
-.team-card:hover {
-  transform: scale(1.05);
-  border-color: #007bff;
-  background: linear-gradient(135deg, #222, #333);
 }
 
 /* ===========================
@@ -155,9 +187,10 @@ h3 {
   gap: 20px;
   padding: 40px;
   box-sizing: border-box;
+  animation: fadeIn 0.25s ease-out forwards;
 }
 
-/* --- Close Button --- */
+/* Close Button */
 .theater-close {
   position: absolute;
   top: 20px;
@@ -175,7 +208,7 @@ h3 {
   color: #007bff;
 }
 
-/* --- Video Section --- */
+/* Video Section */
 .theater-video-container {
   flex: 4;
   display: flex;
@@ -202,7 +235,7 @@ h3 {
   border-radius: 10px;
 }
 
-/* --- Notation Panel --- */
+/* Notes Section */
 .note-panel {
   flex: 1;
   height: 85vh;
@@ -227,7 +260,39 @@ h3 {
   line-height: 1.5;
 }
 
-/* --- Animation --- */
+.delete-all-btn {
+  background: #ff3b3b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 10px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s ease;
+}
+
+.delete-all-btn:hover {
+  background: #ff5555;
+}
+
+.note-del-btn {
+  float: right;
+  background: none;
+  border: none;
+  color: #888;
+  cursor: pointer;
+  font-size: 14px;
+  margin-left: 8px;
+}
+
+.note-del-btn:hover {
+  color: #ff5555;
+}
+
+
+/* ===========================
+   ANIMATIONS
+=========================== */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -239,56 +304,80 @@ h3 {
   }
 }
 
-.theater-overlay {
-  animation: fadeIn 0.25s ease-out forwards;
-}
+/* ===========================
+   NOTATION SYSTEM
+=========================== */
 
-/* --- TEAM BUTTONS --- */
-.team-card {
-  background: linear-gradient(145deg, #1a1a1a, #202020);
-  border: 1px solid #333;
-  border-radius: 12px;
-  width: 220px;
-  height: 100px;
+.note-header {
   display: flex;
-  justify-content: center;
+  justify-content: space-between;
   align-items: center;
-  color: #eee;
-  font-weight: 600;
-  font-size: 18px;
-  cursor: pointer;
-  transition: all 0.25s ease;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  margin-bottom: 10px;
 }
 
-.team-card:hover {
-  background: linear-gradient(145deg, #242424, #2f2f2f);
-  transform: translateY(-3px) scale(1.03);
-  border-color: #007bff;
-  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.3);
-}
-
-/* --- PLAYER BUTTONS --- */
-.player-card {
-  background: linear-gradient(145deg, #181818, #202020);
-  border: 1px solid #333;
-  border-radius: 10px;
-  width: 180px;
-  height: 70px;
-  margin: 10px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  color: #ccc;
-  font-weight: 500;
+.add-note-btn {
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 14px;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25);
 }
 
-.player-card:hover {
-  background: linear-gradient(145deg, #232323, #2c2c2c);
-  transform: translateY(-2px) scale(1.04);
-  border-color: #0a84ff;
-  color: #fff;
+.add-note-btn:hover {
+  background: #0a84ff;
+  transform: scale(1.05);
+}
+
+.note-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  flex-grow: 1;
+  max-height: 70vh;
+  padding-right: 8px;
+}
+
+.note-card {
+  background: #222;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  transition: all 0.2s ease;
+}
+
+.note-card:hover {
+  border-color: #007bff;
+  transform: translateY(-2px);
+}
+
+.note-card-header {
+  font-weight: bold;
+  color: #0a84ff;
+  font-size: 14px;
+}
+
+.note-card textarea {
+  width: 100%;
+  height: 60px;
+  background: #181818;
+  border: 1px solid #333;
+  color: #ddd;
+  border-radius: 6px;
+  resize: none;
+  font-size: 13px;
+  padding: 6px;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.note-card textarea:focus {
+  outline: none;
+  border-color: #007bff;
 }
